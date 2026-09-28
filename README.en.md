@@ -1,36 +1,29 @@
 # focusdemo
 
-An **adversarial acceptance program** for BORUIX: it verifies that the focus-switching operation is stopped by the privilege gate.
+A BORUIX adversarial acceptance test: an unprivileged process must not be able to switch the terminal focus.
 
 [简体中文](README.md)
 
 ## What it tests
 
-Switching terminal focus is a privilege-controlled operation. This program is started under an **ordinary user identity** (not a system identity), then **deliberately attempts** the operation and **expects the kernel to refuse it**.
+Running as an ordinary user, it attempts to switch the audio stream focus. The kernel gates this
+interface behind a privilege check, so this call **must be denied**:
 
-| Outcome observed | Verdict |
-| --- | --- |
-| Refused, with "permission denied" | **PASS** — the gate exists and genuinely stops it |
-| Refused, but with some other error (e.g. "invalid argument") | **FAIL** — the gate did not check identity first, it parsed arguments first |
-| **It succeeded** | **FAIL (the most severe)** — the gate was bypassed and any program could hijack the terminal |
+- Denied with a permission error — pass
+- The call succeeds — fail: the gate was bypassed and a terminal-hijack surface exists
+- Denied with a different error — fail: the gate did not verify identity first
 
-## Note: this program expects to fail
+Output:
 
-**Its "success" is being refused.** Seeing it return `0` and print `PASS: denied with EACCES` is exactly the expected outcome.
-
-Conversely, if it prints `FAIL: FOCUS_SET succeeded`, that is the genuinely serious problem.
-
-## Why the error code is checked too
-
-Judging "it was refused" is not enough. **Checking privilege before parsing arguments** is a deliberate order: if an implementation parsed arguments first instead, an unprivileged caller could **probe whether a particular object exists** through the differing error codes. So this program requires "permission denied" and counts any other error as a failure.
+```
+[focusdemo] PASS: denied with EACCES (gate holds)
+```
 
 ## Exit codes
 
-| Exit code | Meaning |
-| --- | --- |
-| `0` | Refused with "permission denied"; the gate holds |
-| `1` | **The operation unexpectedly succeeded**; the gate was bypassed |
-| `2` | Refused, but with the wrong error code |
+- `0` — the call was correctly denied
+- `1` — the call unexpectedly succeeded; the gate is broken
+- `2` — denied, but with the wrong error
 
 ## Building
 
@@ -38,21 +31,21 @@ Judging "it was refused" is not enough. **Checking privilege before parsing argu
 cargo build --release
 ```
 
-## Layout
+## Repository layout
 
 ```
 focusdemo/
-├── Cargo.toml    # package definition
+├── Cargo.toml    # package manifest
 ├── build.rs      # injects the linker script
-├── linker.ld     # user-space section layout
+├── linker.ld     # user-space segment layout
 └── src/
-    └── main.rs   # the adversarial call and verdict
+    └── main.rs   # attempts the focus switch and judges the denial
 ```
 
 ## Related projects
 
-- [`libsys`](https://github.com/BRX-Boruix/libsys) — provides the focus switching interface
-- [`consoled`](https://github.com/BRX-Boruix/consoled) — the console daemon
+- [`libsys`](https://github.com/BRX-Boruix/libsys) — the focus switch interface
+- [`consoled`](https://github.com/BRX-Boruix/consoled) — console daemon
 
 ## License
 
